@@ -82,3 +82,7 @@ jobs:
           
           echo "docker inspect"
           docker buildx inspect
+
+          echo "docker ps"
+          docker ps
+          
