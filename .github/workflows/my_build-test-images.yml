@@ -69,6 +69,8 @@ jobs:
           docker buildx create --name img-builder --use
           docker buildx inspect --bootstrap | cat 
           docker buildx ls | cat
+          echo "ls qemu"
+          ls -ali /proc/sys/fs/binfmt_misc/qemu-*
           
   
       - name: Building for ppc64
