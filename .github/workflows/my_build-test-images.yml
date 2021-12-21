@@ -5,7 +5,7 @@ on:
       push_to_project:
         description: "Project to build images for"
         required: true
-        default: "ghcr.io/containerd"
+        default: "ghcr.io/alunsin/containerd"
       azure_windows_image_id:
         description: Windows image URN to deploy
         required: true
@@ -61,23 +61,15 @@ jobs:
           sudo apt update
           sudo apt install -y docker-ce docker-ce-cli containerd.io jq
           sudo adduser $USER docker
-      - name: Generate ssh key pair
-        run: |
-          mkdir -p $HOME/.ssh/
-          ssh-keygen -t rsa -b 4096 -C "ci@containerd.com" -f $HOME/.ssh/id_rsa -q -N ""
-          echo "SSH_PUB_KEY=$(cat ~/.ssh/id_rsa.pub)" >> $GITHUB_ENV
-      - name: Enable Docker TLS
+  
+      - name: Check docker setup
         shell: bash
         run: |
-          scp -i $HOME/.ssh/id_rsa ${{ env.SSH_OPTS }} $GITHUB_WORKSPACE/src/github.com/containerd/containerd/script/setup/enable_docker_tls_on_windows.ps1  azureuser@${{ env.PUBLIC_IP }}:/enable_docker_tls_on_windows.ps1
-          ssh -i $HOME/.ssh/id_rsa ${{ env.SSH_OPTS }} azureuser@${{ env.PUBLIC_IP }} "powershell.exe -command { C:/enable_docker_tls_on_windows.ps1 -IPAddresses ${{ env.PUBLIC_IP }},${{ env.PRIVATE_IP }} }"
-      - name: Fetch client certificate and key
-        shell: bash
-        run: |
-          mkdir -p $HOME/.docker
-          scp -i $HOME/.ssh/id_rsa ${{ env.SSH_OPTS }} azureuser@${{ env.PUBLIC_IP }}:/Users/azureuser/.docker/ca.pem $HOME/.docker/ca.pem
-          scp -i $HOME/.ssh/id_rsa ${{ env.SSH_OPTS }} azureuser@${{ env.PUBLIC_IP }}:/Users/azureuser/.docker/cert.pem $HOME/.docker/cert.pem
-          scp -i $HOME/.ssh/id_rsa ${{ env.SSH_OPTS }} azureuser@${{ env.PUBLIC_IP }}:/Users/azureuser/.docker/key.pem $HOME/.docker/key.pem
+          docker info
+          docker buildx ls
+          docker buildx inspect --bootstrap
+          docker buildx create --name img-builder --use
+  
       - name: Build and push images
         shell: bash
         run: |
