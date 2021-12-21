@@ -70,7 +70,7 @@ jobs:
           docker buildx inspect --bootstrap | cat 
           docker buildx ls | cat
           echo "ls qemu"
-          ls -ali /proc/sys/fs/binfmt_misc/qemu-*
+          ls -ali /proc/sys/fs/binfmt_misc/qemu-* || echo "no qemu found"
           
   
       - name: Building for ppc64
