@@ -76,7 +76,7 @@ jobs:
         run: |
           
           cd /home/runner/work/containerd/containerd/src/github.com/containerd/containerd/integration/images/volume-copy-up
-          docker buildx build --pull --output=type=registry --platform linux/ppc64le --build-arg BASE=busybox .
+          docker buildx build --pull  --platform linux/ppc64le --build-arg BASE=busybox .
           
           echo "docker inspect"
           docker buildx inspect
