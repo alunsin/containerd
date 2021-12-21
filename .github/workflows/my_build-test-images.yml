@@ -69,3 +69,14 @@ jobs:
           docker buildx create --name img-builder --use
           docker buildx inspect --bootstrap | cat 
           docker buildx ls | cat
+          
+  
+      - name: Building for ppc64
+        shell: bash
+        run: |
+          
+          cd /home/runner/work/containerd/containerd/src/github.com/containerd/containerd/integration/images/volume-copy-up
+          docker buildx build --pull --output=type=registry --platform linux/ppc64le --build-arg BASE=busybox .
+          
+          echo "docker inspect"
+          docker buildx inspect
