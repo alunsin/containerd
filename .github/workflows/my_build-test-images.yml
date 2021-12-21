@@ -85,4 +85,5 @@ jobs:
 
           echo "docker ps"
           docker ps
+          docker logs buildx_buildkit_img-builder0
           
