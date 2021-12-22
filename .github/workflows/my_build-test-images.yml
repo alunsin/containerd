@@ -1,0 +1,88 @@
+name: "MY Build volume test images"
+on:
+  workflow_dispatch:
+    inputs:
+      push_to_project:
+        description: "Project to build images for"
+        required: true
+        default: "ghcr.io/containerd"
+      azure_windows_image_id:
+        description: Windows image URN to deploy
+        required: true
+        default: MicrosoftWindowsServer:WindowsServer:2022-datacenter:20348.350.2111030009
+      azure_vm_size:
+        description: Windows image builder VM size
+        required: true
+        default: Standard_D2s_v3
+      azure_location:
+        description: The Azure region to deploy to
+        required: true
+        default: westeurope
+
+permissions:
+  packages: write
+
+env:
+  AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUB_ID }}
+  DEFAULT_ADMIN_USERNAME: azureuser
+  SSH_OPTS: "-o ServerAliveInterval=20 -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null"
+  AZURE_RESOURCE_GROUP: ctrd-test-image-build-${{ github.run_id }}
+
+jobs:
+  images:
+    name: "Build volume test images"
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: src/github.com/containerd/containerd
+
+    steps:
+      - uses: actions/setup-go@v2
+        with:
+          go-version: '1.17.5'
+
+      - uses: actions/checkout@v2
+        with:
+          path: src/github.com/containerd/containerd
+
+      - name: Set env
+        shell: bash
+        run: |
+          echo "GOPATH=${{ github.workspace }}" >> $GITHUB_ENV
+          echo "${{ github.workspace }}/bin" >> $GITHUB_PATH
+      - name: Install docker
+        shell: bash
+        run: |
+          sudo apt update
+          sudo apt install -y ca-certificates curl gnupg lsb-release
+          curl -fsSL https://download.docker.com/linux/ubuntu/gpg > /tmp/docker.gpg
+          sudo gpg --yes --dearmor -o /usr/share/keyrings/docker-archive-keyring.gpg /tmp/docker.gpg
+          echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/docker-archive-keyring.gpg] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable" | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+          sudo apt update
+          sudo apt install -y docker-ce docker-ce-cli containerd.io jq
+          sudo adduser $USER docker
+      - name: Generate ssh key pair
+        run: |
+          mkdir -p $HOME/.ssh/
+          ssh-keygen -t rsa -b 4096 -C "ci@containerd.com" -f $HOME/.ssh/id_rsa -q -N ""
+          echo "SSH_PUB_KEY=$(cat ~/.ssh/id_rsa.pub)" >> $GITHUB_ENV
+      - name: Enable Docker TLS
+        shell: bash
+        run: |
+          scp -i $HOME/.ssh/id_rsa ${{ env.SSH_OPTS }} $GITHUB_WORKSPACE/src/github.com/containerd/containerd/script/setup/enable_docker_tls_on_windows.ps1  azureuser@${{ env.PUBLIC_IP }}:/enable_docker_tls_on_windows.ps1
+          ssh -i $HOME/.ssh/id_rsa ${{ env.SSH_OPTS }} azureuser@${{ env.PUBLIC_IP }} "powershell.exe -command { C:/enable_docker_tls_on_windows.ps1 -IPAddresses ${{ env.PUBLIC_IP }},${{ env.PRIVATE_IP }} }"
+      - name: Fetch client certificate and key
+        shell: bash
+        run: |
+          mkdir -p $HOME/.docker
+          scp -i $HOME/.ssh/id_rsa ${{ env.SSH_OPTS }} azureuser@${{ env.PUBLIC_IP }}:/Users/azureuser/.docker/ca.pem $HOME/.docker/ca.pem
+          scp -i $HOME/.ssh/id_rsa ${{ env.SSH_OPTS }} azureuser@${{ env.PUBLIC_IP }}:/Users/azureuser/.docker/cert.pem $HOME/.docker/cert.pem
+          scp -i $HOME/.ssh/id_rsa ${{ env.SSH_OPTS }} azureuser@${{ env.PUBLIC_IP }}:/Users/azureuser/.docker/key.pem $HOME/.docker/key.pem
+      - name: Build and push images
+        shell: bash
+        run: |
+          make -C $GITHUB_WORKSPACE/src/github.com/containerd/containerd/integration/images/volume-copy-up setup-buildx
+          make -C $GITHUB_WORKSPACE/src/github.com/containerd/containerd/integration/images/volume-copy-up build-registry PROJ=${{ github.event.inputs.push_to_project }} REMOTE_DOCKER_URL=${{ env.PUBLIC_IP }}:2376
+          make -C $GITHUB_WORKSPACE/src/github.com/containerd/containerd/integration/images/volume-copy-up push-manifest PROJ=${{ github.event.inputs.push_to_project }} REMOTE_DOCKER_URL=${{ env.PUBLIC_IP }}:2376
+          make -C $GITHUB_WORKSPACE/src/github.com/containerd/containerd/integration/images/volume-ownership build-registry PROJ=${{ github.event.inputs.push_to_project }} REMOTE_DOCKER_URL=${{ env.PUBLIC_IP }}:2376
+          make -C $GITHUB_WORKSPACE/src/github.com/containerd/containerd/integration/images/volume-ownership push-manifest PROJ=${{ github.event.inputs.push_to_project }} REMOTE_DOCKER_URL=${{ env.PUBLIC_IP }}:2376
