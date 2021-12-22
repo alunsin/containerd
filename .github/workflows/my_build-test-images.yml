@@ -5,7 +5,7 @@ on:
       push_to_project:
         description: "Project to build images for"
         required: true
-        default: "ghcr.io/containerd"
+        default: "ghcr.io/alunsin/containerd"
       azure_windows_image_id:
         description: Windows image URN to deploy
         required: true
@@ -61,6 +61,21 @@ jobs:
           sudo apt update
           sudo apt install -y docker-ce docker-ce-cli containerd.io jq
           sudo adduser $USER docker
+  
+      - name: Check docker setup
+        shell: bash
+        run: |
+          docker info
+          docker buildx create --name img-builder --use
+          docker buildx inspect --bootstrap | cat 
+          docker buildx ls | cat
+          echo "ls qemu"
+          ls -ali /proc/sys/fs/binfmt_misc/qemu-* || echo "no qemu found"
+          
+  
+      - name: Building for ppc64
+        shell: bash
+        run: |
       - name: Build and push images
         shell: bash
         run: |
