@@ -80,10 +80,7 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Building for ppc64
-        shell: bash
-        run: |
-      - name: Build and push images
+      - name: Build and push images for Linux (amd64, arm64, ppc64le)
         shell: bash
         run: |
           make -C $GITHUB_WORKSPACE/src/github.com/containerd/containerd/integration/images/volume-copy-up setup-buildx
